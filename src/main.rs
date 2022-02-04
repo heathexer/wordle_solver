@@ -1,4 +1,4 @@
-use rand::Rng;
+use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufReader};
@@ -20,8 +20,14 @@ fn main() {
 
         process_input(words, &guess.trim(), &colors.trim());
 
-        for (i, word) in words.iter().enumerate() {
-            println!("{}: {}", i, word);
+        let mut words_scored: BinaryHeap<(usize, &String)> = BinaryHeap::new();
+        for word in words.iter() {
+            let score = score_word(words, word);
+            words_scored.push((score, word));
+        }
+
+        for (score, word) in words_scored.into_sorted_vec() {
+            println!("{} {}", score, word);
         }
     }
 }
@@ -62,6 +68,19 @@ fn process_input(words: &mut Vec<String>, guess: &str, colors: &str) {
             _ => println!("Invalid"),
         }
     }
+}
+
+fn score_word(words: &Vec<String>, word: &str) -> usize {
+    let mut score = 0;
+    for (i, c) in word.bytes().enumerate() {
+        for w in words {
+            if c == w.as_bytes()[i] {
+                score += 1;
+            }
+        }
+    }
+
+    return score;
 }
 
 fn letter_gray(words: &mut Vec<String>, letter: char) {
