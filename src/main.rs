@@ -1,4 +1,5 @@
-use std::collections::BinaryHeap;
+use regex::Regex;
+use std::collections::{BinaryHeap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufReader};
@@ -6,28 +7,40 @@ use std::io::{self, BufReader};
 fn main() {
     let filename = "words.txt";
     let words: &mut Vec<String> = &mut vec![];
-    let mut guess: String = String::new();
-    let mut colors: String = String::new();
+    let mut scores = Vec::<HashMap<char, usize>>::new();
     load_words(words, filename);
 
-    loop {
-        guess.clear();
-        colors.clear();
-        println!("Input your guess (Ex. \"irate\"):");
-        io::stdin().read_line(&mut guess).expect("Err reading");
-        println!("Input the resulting colors (Ex. \"bygbb\"):");
-        io::stdin().read_line(&mut colors).expect("Err reading");
+    let in_re = Regex::new(r"\A\s*[a-z]{5} [b,y,g]{5}\s*").unwrap();
 
-        process_input(words, &guess.trim(), &colors.trim());
+    loop {
+        process_scores(words, &mut scores);
 
         let mut words_scored: BinaryHeap<(usize, &String)> = BinaryHeap::new();
         for word in words.iter() {
-            let score = score_word(words, word);
+            let score = word.chars().enumerate().map(|(i, c)| scores[i][&c]).sum();
             words_scored.push((score, word));
         }
 
         for (score, word) in words_scored.into_sorted_vec() {
             println!("{} {}", score, word);
+        }
+
+        let mut input = String::new();
+        println!("Input your guess (Ex. \"irate bygbb\"):");
+        io::stdin().read_line(&mut input).expect("Err reading");
+
+        // if in_re.is_match(input.as_str()) {
+        //     let inp = in_re.captures_iter(input.as_str());
+        // } else {
+        //     println!("Invalid input format");
+        //     continue;
+        // }
+
+        if !in_re.is_match(&input) {
+            println!("Error reading input");
+            continue;
+        } else {
+            process_input(words, &input);
         }
     }
 }
@@ -42,10 +55,13 @@ fn load_words(words: &mut Vec<String>, filename: &str) {
     }
 }
 
-fn process_input(words: &mut Vec<String>, guess: &str, colors: &str) {
+fn process_input(words: &mut Vec<String>, input: &str) {
+    let input: Vec<&str> = input.trim().split(' ').collect();
+    let guess = input[0].to_string();
+    let colors = input[1].to_string();
+
     let guess_chrs = guess.chars().enumerate();
     let color_chrs: Vec<char> = colors.chars().collect();
-    println!("{} {}", guess, colors);
 
     for (i, c) in guess_chrs.clone() {
         match color_chrs[i] {
@@ -70,18 +86,31 @@ fn process_input(words: &mut Vec<String>, guess: &str, colors: &str) {
     }
 }
 
-fn score_word(words: &Vec<String>, word: &str) -> usize {
-    let mut score = 0;
-    for (i, c) in word.bytes().enumerate() {
-        for w in words {
-            if c == w.as_bytes()[i] {
-                score += 1;
-            }
-        }
+fn process_scores(words: &mut Vec<String>, scores: &mut Vec<HashMap<char, usize>>) {
+    *scores = Vec::with_capacity(5);
+    for _i in 0..5 {
+        scores.push(HashMap::new());
     }
 
-    return score;
+    for word in words {
+        for (i, c) in word.chars().enumerate() {
+            *scores[i].entry(c).or_insert(1) += 1;
+        }
+    }
 }
+
+// fn score_word(words: &Vec<String>, word: &str) -> usize {
+//     let mut score = 0;
+//     for (i, c) in word.bytes().enumerate() {
+//         for w in words {
+//             if c == w.as_bytes()[i] {
+//                 score += 1;
+//             }
+//         }
+//     }
+
+//     return score;
+// }
 
 fn letter_gray(words: &mut Vec<String>, letter: char) {
     words.retain(|word| !word.contains(letter));
