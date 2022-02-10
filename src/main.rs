@@ -3,50 +3,91 @@ use std::collections::{BinaryHeap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufReader};
+use std::str::FromStr;
 
 fn main() {
+    let mut top_n: usize = 10;
     let filename = "words.txt";
     let words: &mut Vec<String> = &mut vec![];
-    let mut scores = Vec::<HashMap<char, usize>>::new();
-    load_words(words, filename);
-
+    let mut words_scored: BinaryHeap<(usize, String)> = BinaryHeap::new();
     let in_re = Regex::new(r"\A\s*[a-z]{5} [b,y,g]{5}\s*").unwrap();
 
-    loop {
-        process_scores(words, &mut scores);
+    load_words(words, filename);
 
-        let mut words_scored: BinaryHeap<(usize, &String)> = BinaryHeap::new();
-        for word in words.iter() {
-            let score = word.chars().enumerate().map(|(i, c)| scores[i][&c]).sum();
-            words_scored.push((score, word));
-        }
+    println!("\nWelcome to Wordle Hint!");
+    println!(
+        "\nThe purpose of this program is to give you a list of valid words \
+     in your wordle attempt. Many times I've gotten to a point where it's \
+     hard to even think of a word that works with my previous guesses, and \
+     this program is meant to alleviate that. It also ranks each \
+     word based on how common its letters are in the remaining words to help \
+     make better guesses."
+    );
+    print_help();
 
-        for (score, word) in words_scored.into_sorted_vec() {
-            println!("{} {}", score, word);
-        }
+    'main: loop {
+        process_scores(words, &mut words_scored);
+        print_top_n(&words_scored, top_n);
 
-        let mut input = String::new();
-        println!("Input your guess (Ex. \"irate bygbb\"):");
-        io::stdin().read_line(&mut input).expect("Err reading");
+        'input: loop {
+            let mut input = String::new();
 
-        // if in_re.is_match(input.as_str()) {
-        //     let inp = in_re.captures_iter(input.as_str());
-        // } else {
-        //     println!("Invalid input format");
-        //     continue;
-        // }
+            println!("\nInput your guess, or a command:");
+            io::stdin().read_line(&mut input).unwrap();
+            input = input.trim().to_string();
+            if input.is_empty() {
+                continue 'input;
+            }
 
-        if !in_re.is_match(&input) {
-            println!("Error reading input");
-            continue;
-        } else {
-            process_input(words, &input);
+            if !in_re.is_match(&input) {
+                let input: Vec<&str> = input.split(' ').collect();
+                match input[0] {
+                    "h" | "?" => {
+                        print_help();
+                        continue 'input;
+                    }
+                    "r" => {
+                        words.clear();
+                        load_words(words, filename);
+                    }
+                    "s" => {
+                        match input.get(1) {
+                            Some(str) => match usize::from_str(str) {
+                                Ok(n) => {
+                                    top_n = n;
+                                    print_top_n(&words_scored, top_n);
+                                }
+                                Err(_) => {
+                                    println!("{}: not a valid number", str);
+                                }
+                            },
+                            None => {
+                                print_top_n(&words_scored, words_scored.len());
+                            }
+                        }
+                        continue 'input;
+                    }
+                    "q" => {
+                        break 'main;
+                    }
+                    c => {
+                        println!("{}: not a valid guess or command.", c);
+                        continue 'input;
+                    }
+                }
+            } else {
+                process_input(words, &input);
+            }
+            continue 'main;
         }
     }
+
+    println!("Goodbye!");
 }
 
+// Load words from the file at filename, one word per line, into words vec
 fn load_words(words: &mut Vec<String>, filename: &str) {
-    let file = File::open(filename).expect("Couldn't open");
+    let file = File::open(filename).expect(format!("Couldn't open \"{}\"", filename).as_str());
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
@@ -55,8 +96,9 @@ fn load_words(words: &mut Vec<String>, filename: &str) {
     }
 }
 
+// Take in a string representing the user's guess and call out to appropriate functions to filter remaining word list
 fn process_input(words: &mut Vec<String>, input: &str) {
-    let input: Vec<&str> = input.trim().split(' ').collect();
+    let input: Vec<&str> = input.split(' ').collect();
     let guess = input[0].to_string();
     let colors = input[1].to_string();
 
@@ -81,37 +123,70 @@ fn process_input(words: &mut Vec<String>, input: &str) {
             }
             'y' => letter_yellow(words, c, i),
             'g' => letter_green(words, c, i),
-            _ => println!("Invalid"),
+            _ => (),
         }
     }
 }
 
-fn process_scores(words: &mut Vec<String>, scores: &mut Vec<HashMap<char, usize>>) {
-    *scores = Vec::with_capacity(5);
+// Iterate through the word list and add up scores for each char in each position
+// Intermediate step is a vec of hashmaps (char->int) to keep track of a score per letter per location
+// Result stored as a score, word tuple in a binary heap for almost free sorting
+fn process_scores(words: &Vec<String>, words_scored: &mut BinaryHeap<(usize, String)>) {
+    // Empty old scores
+    words_scored.clear();
+
+    // Create new vec<hashmap> of scores
+    let mut scores = Vec::with_capacity(5);
     for _i in 0..5 {
         scores.push(HashMap::new());
     }
 
+    // Iterate through words and add to score for every char
     for word in words {
         for (i, c) in word.chars().enumerate() {
             *scores[i].entry(c).or_insert(1) += 1;
         }
     }
+
+    // Sum up scores for each word and store the result
+    for word in words {
+        let score = word.chars().enumerate().map(|(i, c)| scores[i][&c]).sum();
+        words_scored.push((score, word.clone().to_string()));
+    }
 }
 
-// fn score_word(words: &Vec<String>, word: &str) -> usize {
-//     let mut score = 0;
-//     for (i, c) in word.bytes().enumerate() {
-//         for w in words {
-//             if c == w.as_bytes()[i] {
-//                 score += 1;
-//             }
-//         }
-//     }
+// Prints out the top n words with the highest scores
+fn print_top_n(words_scored: &BinaryHeap<(usize, String)>, n: usize) {
+    let i0 = words_scored.len().saturating_sub(n);
+    let actual_n = words_scored.len() - i0;
 
-//     return score;
-// }
+    match actual_n {
+        0 => println!("\nNo valid words, how did you get here?"),
+        1 => println!("\nOnly valid word:"),
+        x => println!("\nTop {} words:", x),
+    }
 
+    for (score, word) in words_scored.clone().into_sorted_vec()[i0..].to_vec() {
+        println!("{} {}", word, score);
+    }
+}
+
+// Prints the help message
+fn print_help() {
+    println!("\nValid commands:");
+    println!(" h/?   - view this message again");
+    println!(" s [n] - show the top n words every round. No argument to view all words once");
+    println!(" r     - reset the valid words list");
+    println!(" q     - quit");
+    println!("Guess format:");
+    println!(" [guess xxxxx]");
+    println!("where the xs can be any of g, y, or b");
+    println!(" g - green letter, the letter exists in the word in this position");
+    println!(" y - yellow letter, the letter exists in the word but not in this position");
+    println!(" b - blank or black letter, the letter does not exist in the word (I couldn't re-use g for gray)");
+}
+
+// letter_* all iterate through list of remaining words and remove any impossible ones given a new letter
 fn letter_gray(words: &mut Vec<String>, letter: char) {
     words.retain(|word| !word.contains(letter));
 }
