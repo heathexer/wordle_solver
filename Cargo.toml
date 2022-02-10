@@ -1,5 +1,5 @@
 [package]
-name = "wordle_solver"
+name = "wordle_hint"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,3 @@ edition = "2021"
 
 [dependencies]
 regex = "1"
-lazy_static = "1"

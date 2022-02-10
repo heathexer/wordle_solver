@@ -8,9 +8,9 @@ use std::str::FromStr;
 fn main() {
     let mut top_n: usize = 10;
     let filename = "words.txt";
+    let in_re = Regex::new(r"\A\s*[a-z]{5} [b,y,g]{5}\s*").unwrap();
     let words: &mut Vec<String> = &mut vec![];
     let mut words_scored: BinaryHeap<(usize, String)> = BinaryHeap::new();
-    let in_re = Regex::new(r"\A\s*[a-z]{5} [b,y,g]{5}\s*").unwrap();
 
     load_words(words, filename);
 
@@ -34,6 +34,7 @@ fn main() {
 
             println!("\nInput your guess, or a command:");
             io::stdin().read_line(&mut input).unwrap();
+
             input = input.trim().to_string();
             if input.is_empty() {
                 continue 'input;
@@ -43,14 +44,17 @@ fn main() {
                 let input: Vec<&str> = input.split(' ').collect();
                 match input[0] {
                     "h" | "?" => {
+                        // help
                         print_help();
                         continue 'input;
                     }
                     "r" => {
+                        // reset
                         words.clear();
                         load_words(words, filename);
                     }
                     "s" => {
+                        // show
                         match input.get(1) {
                             Some(str) => match usize::from_str(str) {
                                 Ok(n) => {
@@ -68,9 +72,11 @@ fn main() {
                         continue 'input;
                     }
                     "q" => {
+                        // quit
                         break 'main;
                     }
                     c => {
+                        // unkown
                         println!("{}: not a valid guess or command.", c);
                         continue 'input;
                     }
@@ -123,7 +129,7 @@ fn process_input(words: &mut Vec<String>, input: &str) {
             }
             'y' => letter_yellow(words, c, i),
             'g' => letter_green(words, c, i),
-            _ => (),
+            _ => (), // Shouldn't ever get here, regex would've filtered it by now
         }
     }
 }
@@ -144,7 +150,7 @@ fn process_scores(words: &Vec<String>, words_scored: &mut BinaryHeap<(usize, Str
     // Iterate through words and add to score for every char
     for word in words {
         for (i, c) in word.chars().enumerate() {
-            *scores[i].entry(c).or_insert(1) += 1;
+            *scores[i].entry(c).or_insert(0) += 1;
         }
     }
 
